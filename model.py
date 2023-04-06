@@ -13,14 +13,17 @@ import layers
 import sampler as sampler_module
 import evaluation
 
+
 def clearlog():
     with open("log.txt", 'w') as f:
         f.write("")
+
 
 def writelog(m):
     m = str(m)
     with open("log.txt", 'a') as f:
         f.write(m + "\n")
+
 
 class PinSAGEModel(nn.Module):
     def __init__(self, full_graph, ntype, textsets, hidden_dims, n_layers):
@@ -40,32 +43,39 @@ class PinSAGEModel(nn.Module):
         h_item = self.proj(blocks[0].srcdata)
         h_item_dst = self.proj(blocks[-1].dstdata)
         return h_item_dst + self.sage(blocks, h_item)
-        
+
+
 def load_model(data_dict, device, args):
-    gnn = PinSAGEModel(data_dict['graph'], data_dict['item_ntype'], data_dict['textset'], args.hidden_dims, args.num_layers).to(device)
+    gnn = PinSAGEModel(data_dict['graph'], data_dict['item_ntype'], data_dict['textset'], args.hidden_dims,
+                       args.num_layers).to(device)
     opt = torch.optim.Adam(gnn.parameters(), lr=args.lr)
     if args.retrain:
         checkpoint = torch.load(args.save_path + '.pt', map_location=device)
     else:
         checkpoint = torch.load(args.save_path, map_location=device)
-   
+
     gnn.load_state_dict(checkpoint['model_state_dict'])
     opt.load_state_dict(checkpoint['optimizer_state_dict'])
 
     return gnn, opt, checkpoint['epoch']
 
+
 # 뭐 일단 요약하자면 데이터 전처리 작업.
 def prepare_dataset(data_dict, args):
     g = data_dict['graph']
     item_texts = data_dict['item_texts']
-    user_ntype = data_dict['user_ntype'] # user
-    item_ntype = data_dict['item_ntype'] # wine
+    user_ntype = data_dict['user_ntype']  # user
+    item_ntype = data_dict['item_ntype']  # wine
 
     # Assign user and movie IDs and use them as features (to learn an individual trainable
     # embedding for each entity)
     # TODO 각 노드의 갯수만큼 id를 부여해준다. 나중에 임베딩 각각 부여해줄 때 필요한듯?
+
+    print(f"before: {g.ndata.keys()}")
     g.nodes[user_ntype].data['id'] = torch.arange(g.number_of_nodes(user_ntype))
     g.nodes[item_ntype].data['id'] = torch.arange(g.number_of_nodes(item_ntype))
+    print(f"after: {g.ndata.keys()}")
+    print(f"id? : {g.ndata['id']}")
     data_dict['graph'] = g
 
     # Prepare torchtext dataset and vocabulary
@@ -82,19 +92,20 @@ def prepare_dataset(data_dict, args):
                 [item_texts[key][i] for key in item_texts.keys()],
                 [(key, fields[key]) for key in item_texts.keys()])
             examples.append(example)
-            
+
         textset = torchtext.data.Dataset(examples, fields)
         for key, field in fields.items():
             field.build_vocab(getattr(textset, key))
-            #field.build_vocab(getattr(textset, key), vectors='fasttext.simple.300d')
+            # field.build_vocab(getattr(textset, key), vectors='fasttext.simple.300d')
         data_dict['textset'] = textset
 
     return data_dict
 
+
 def prepare_dataloader(data_dict, args):
     g = data_dict['graph']
-    user_ntype = data_dict['user_ntype'] # user
-    item_ntype = data_dict['item_ntype'] # wine
+    user_ntype = data_dict['user_ntype']  # user
+    item_ntype = data_dict['item_ntype']  # wine
     textset = data_dict['textset']
 
     # Sampler
@@ -102,7 +113,7 @@ def prepare_dataloader(data_dict, args):
     # 이 자슥은, 그래프, 유저 타입, 아이템 타입, 배치 사이즈를 넣고 배치 샘플링을 얻어낸다.
     batch_sampler = sampler_module.ItemToItemBatchSampler(
         g, user_ntype, item_ntype, args.batch_size)
-    
+
     # 이 자슥은, 이웃 샘플러네 이름부터.
     neighbor_sampler = sampler_module.NeighborSampler(
         g, user_ntype, item_ntype, args.random_walk_length,
@@ -126,13 +137,14 @@ def prepare_dataloader(data_dict, args):
     dataloader_it = iter(dataloader)
 
     return dataloader_it, dataloader_test, neighbor_sampler
-    
+
+
 def train(data_dict, args):
     device = torch.device(f'cuda:{args.device}' if torch.cuda.is_available() else 'cpu')
     if device.type == 'cpu':
         print('Current using CPUs')
     else:
-        print ('Current cuda device ', torch.cuda.current_device()) # check
+        print('Current cuda device ', torch.cuda.current_device())  # check
 
     # Dataset
     data_dict = prepare_dataset(data_dict, args)
@@ -148,7 +160,8 @@ def train(data_dict, args):
     # 일반적인 학습 상황
     else:
         # 모델 객체 생성
-        gnn = PinSAGEModel(data_dict['graph'], data_dict['item_ntype'], data_dict['textset'], args.hidden_dims, args.num_layers)
+        gnn = PinSAGEModel(data_dict['graph'], data_dict['item_ntype'], data_dict['textset'], args.hidden_dims,
+                           args.num_layers)
         # 옵티마이저
         opt = torch.optim.Adam(gnn.parameters(), lr=args.lr)
         start_epoch = 0
@@ -160,8 +173,13 @@ def train(data_dict, args):
         user_ntype = data_dict['user_ntype']
         user_to_item_etype = data_dict['user_to_item_etype']
         timestamp = data_dict['timestamp']
-        nid_uid_dict = {v: k for v, k in enumerate(list(g.ndata['userID'].values())[0].numpy())}
-        nid_wid_dict = {nid.item(): wid.item() for wid, nid in  zip(g.ndata['wine_id']['wine'], g.ndata['id']['wine'])}
+        # nid_uid_dict = {v: k for v, k in enumerate(list(g.ndata['userID'].values())[0].numpy())} # 각 userID마다 해시 생성
+        # nid_wid_dict = {nid.item(): wid.item() for wid, nid in  zip(g.ndata['wine_id']['wine'], g.ndata['id']['wine'])} # 각 wineID마다 해시 생성
+        nid_uid_dict = {v: k for v, k in enumerate(g.ndata['userID']['user'].numpy())}
+        nid_wid_dict = {v: k for v, k in enumerate(g.ndata['wine_id']['wine'].numpy())}
+        # print(f"g.ndata['id']: {g.ndata['id']} \n g.ndata['id']['wine']: {g.ndata['id']['wine']} ")
+        # print(f"nid_wid_dict: {nid_wid_dict}")
+        print(f"g.ndata.keys(): {g.ndata.keys()}")
 
     # 모델을 마 gpu로 보내가!
     gnn = gnn.to(device)
@@ -183,16 +201,18 @@ def train(data_dict, args):
 
         # Evaluate
         # 0번째는 재끼고
-        if not epoch:
-            continue
+        # if not epoch:
+        #     continue
 
         # 1번째 에폭마다 평가
         # 조건은.. 에폭  평가할거라는 1 표시랑, 모든 에폭을 다 돌았다면..
         if args.eval_epochs and not epoch % args.eval_epochs:
-            h_item = evaluation.get_all_emb(gnn, g.ndata['id'][item_ntype], data_dict['textset'], item_ntype, neighbor_sampler, args.batch_size, device)
-            writelog(f"\n\nh_item: {h_item}\n\n")
+            h_item = evaluation.get_all_emb(
+                gnn=gnn, seed_array=g.ndata['id'][item_ntype], textset=data_dict['textset'], item_ntype=item_ntype,
+                neighbor_sampler=neighbor_sampler, batch_size=args.batch_size, device=device)
+            # writelog(f"\n\nh_item: {h_item}\n\n")
             item_batch = evaluation.item_by_user_batch(g, user_ntype, item_ntype, user_to_item_etype, timestamp, args)
-            writelog(f"\n\nitem_batch: {item_batch}\n\n")
+            # writelog(f"\n\nitem_batch: {item_batch}\n\n")
             recalls = []
             precisions = []
             hitrates = []
@@ -204,16 +224,16 @@ def train(data_dict, args):
                 '''
                 # 실제 유저 ID 탐색
                 category = nid_uid_dict[i]
-                writelog(f"\n\ncategory: {category}\n\n")
+                # writelog(f"\n\ncategory: {category}\n\n")
                 user_id = data_dict['user_category'][category]  # 실제 유저 id
-                writelog(f"\n\nuser_id: {user_id}\n\n")
+                # writelog(f"\n\nuser_id: {user_id}\n\n")
                 label = data_dict['testset'][user_id]  # 테스트 라벨
-                writelog(f"\n\nlabel: {label}\n\n")
+                # writelog(f"\n\nlabel: {label}\n\n")
                 users.append(user_id)
 
                 # 실제 와인 ID 탐색
                 item = evaluation.node_to_item(nodes, nid_wid_dict, data_dict['item_category'])  # 와인 ID
-                writelog(f"\n\nitem: {item}\n\n")
+                # writelog(f"\n\nitem: {item}\n\n")
                 label_idx = [i for i, x in enumerate(item) if x in label]  # 라벨 인덱스
 
                 # 아이템 추천
@@ -245,13 +265,14 @@ def train(data_dict, args):
         if args.save_epochs:
             if not epoch % args.save_epochs:
                 torch.save({
-                'epoch': epoch,
-                'model_state_dict': gnn.state_dict(),
-                'optimizer_state_dict': opt.state_dict(),
-                'loss': loss
-                        }, args.save_path + '_' + str(epoch) + 'epoch.pt')
+                    'epoch': epoch,
+                    'model_state_dict': gnn.state_dict(),
+                    'optimizer_state_dict': opt.state_dict(),
+                    'loss': loss
+                }, args.save_path + '_' + str(epoch) + 'epoch.pt')
 
-    return gnn, epoch+1, opt, loss
+    return gnn, epoch + 1, opt, loss
+
 
 if __name__ == '__main__':
     clearlog()
@@ -280,28 +301,27 @@ if __name__ == '__main__':
     # Load dataset
     with open(args.dataset_path, 'rb') as f:
         dataset = pickle.load(f)
-        
+
     data_dict = {
         'graph': dataset['train-graph'],
         'val_matrix': None,
         'test_matrix': None,
         'item_texts': dataset['item-texts'],
-        'testset': dataset['testset'], 
+        'testset': dataset['testset'],
         'user_ntype': dataset['user-type'],
         'item_ntype': dataset['item-type'],
         'user_to_item_etype': dataset['user-to-item-type'],
         'timestamp': dataset['timestamp-edge-column'],
-        'user_category': dataset['user-category'], 
+        'user_category': dataset['user-category'],
         'item_category': dataset['item-category']
     }
-    
+
     # Training
     gnn, epoch, opt, loss = train(data_dict, args)
 
-
     torch.save({
-                'epoch': epoch,
-                'model_state_dict': gnn.state_dict(),
-                'optimizer_state_dict': opt.state_dict(),
-                'loss': loss
-            }, args.save_path + '_' + str(epoch) + 'epoch.pt')
+        'epoch': epoch,
+        'model_state_dict': gnn.state_dict(),
+        'optimizer_state_dict': opt.state_dict(),
+        'loss': loss
+    }, args.save_path + '_' + str(epoch) + 'epoch.pt')

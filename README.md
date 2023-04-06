@@ -41,7 +41,8 @@ This model recommends wine as Knearst Neighbors for all users.
 This method finds the center of the embedding vector of the wine consumed by a specific user and recommends the K wines closest to the center vector.
 
 ```
-python model.py -d data.pkl -s model -k 500 --eval-epochs 100 --save-epochs 100 --num-epochs 500 --device 0 --hidden-dims 128 --batch-size 64 --batches-per-epoch 512
+prod: python model.py -d data.pkl -s model -k 500 --eval-epochs 100 --save-epochs 100 --num-epochs 500 --device 0 --hidden-dims 128 --batch-size 64 --batches-per-epoch 512
+dev: python model.py -d data.pkl -s model -k 10 --eval-epochs 1 --save-epochs 100 --num-epochs 1 --device 0 --hidden-dims 128 --batch-size 64 --batches-per-epoch 512
 ```
 
 - d: Data Files

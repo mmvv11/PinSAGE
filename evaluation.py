@@ -38,8 +38,20 @@ def get_blocks(seeds, item_ntype, textset, sampler):
     return blocks
 
 def get_all_emb(gnn, seed_array, textset, item_ntype, neighbor_sampler, batch_size, device='cuda'):
-    seeds = torch.arange(seed_array.shape[0]).split(batch_size)
-    testset = get_blocks(seeds, item_ntype, textset, neighbor_sampler)
+    """
+
+    :param gnn: 학습된 모델
+    :param seed_array: g.ndata['id'][item_ntype] 이게 넘어오는데, 이것은 wine id에 해시 키
+    :param textset: None이고
+    :param item_ntype: wine이고
+    :param neighbor_sampler: 이웃 샘플러.. 자세한 구조는 봐야할 것 같고.
+    :param batch_size: args.batch_size = 64
+    :param device: gpu or cpu ..
+    :return:
+    """
+    seeds = torch.arange(seed_array.shape[0]).split(batch_size) # batch_size대로 split한 arage .. ex) 1~5, 6~10 ..
+    testset = get_blocks(seeds, item_ntype, textset, neighbor_sampler) # 아이템 주변의 이웃에 대한 block
+    print(f"testset: {testset}")
 
     gnn = gnn.to(device)
     gnn.eval()
