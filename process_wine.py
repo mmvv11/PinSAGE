@@ -77,7 +77,8 @@ test = test[test['like'] == 1]
 test = test[columns]
 
 ratings = pd.concat([train, test], axis=0, ignore_index=True)
-user_filter = [k for k, v in ratings['userID'].value_counts().items() if v > 1]
+## TODO 유저 필터로 데이터 갯수 조절 가능할 듯. 초기값은 v > 1.. 인데 나는 45으로 해보겠음.
+user_filter = [k for k, v in ratings['userID'].value_counts().items() if v == 7]
 ratings = ratings[ratings['userID'].isin(user_filter)]
 
 # Build Graph
